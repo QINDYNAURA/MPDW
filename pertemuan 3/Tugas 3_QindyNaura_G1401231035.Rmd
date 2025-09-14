@@ -324,8 +324,8 @@ library(dynlm)
 dlm_qopt <- dynlm(Yt ~ Xt + L(Xt, 1:10), data = train.ts)
 summary(dlm_qopt)
 
-#menggunakan model optimum dengan p=2 dan q=13
-ardl_pqopt <- dynlm(Yt ~ Xt + L(Xt, 1:2) + L(Yt, 1:13), data = train.ts)
+#menggunakan model optimum dengan p=13 dan q=2
+ardl_pqopt <- dynlm(Yt ~ Xt + L(Xt, 1:13) + L(Yt, 1:2), data = train.ts)
 summary(ardl_pqopt)
 
 #q=7
