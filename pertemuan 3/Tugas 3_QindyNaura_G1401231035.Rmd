@@ -1,1 +1,448 @@
+---
+title: "Tugas 3_Regresi dengan Peubah Lag" 
+author: "Qindy Naura" 
+date: "12 September 2025" 
+output: html_document
+---
 
+### Memanggil Library
+```{r}
+library(dLagM)
+library(dynlm)
+library(MLmetrics)
+library(lmtest)
+library(car)
+```
+
+## Import Data 
+```{r}
+data <- rio::import("https://raw.githubusercontent.com/QINDYNAURA/MPDW/main/pertemuan%203/NewDelhi_Air_quality.csv")
+str(data)
+data
+```
+Data tersebut menunjukkan nilai tingkat polusi udara di New Delhi beserta faktor-faktornya. Penurunan kualitas udara dapat disebabkan oleh kegiatan manusia seperti industri, transportasi dan aktivitas lainnya sehingga unsur-unsur yang berbahaya seperti karbon monoksida (CO), Nitrogen dioksida (NO2) dan Sulfur dioksida (SO2) masuk ke dalam udara dan atmosfer bumi  (Dwangga, 2018).\
+
+# Eksplorasi Data
+Peubah yang menjadi peubah Y adalah AQI. Selanjutnya akan dilakukan eksplorasi data terlebih dahulu untuk menentukan peubah mana yang akan dijadikan peubah X nya.\
+
+## Melihat sebaran AQI
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Statistik deskriptif
+summary(data)
+
+# dstribusi AQI
+ggplot(data, aes(x = AQI)) +
+  geom_histogram(aes(y = ..density..), bins = 30, 
+                 fill = "skyblue", color = "black", alpha = 0.6) +
+  geom_density(color = "red", size = 1) +
+  theme_minimal() +
+  labs(title = "Distribusi AQI",
+       x = "AQI", y = "Density")
+```
+
+Distribusi Y menunjukkan nilai AQI paling banyak berada pada nilai 26-27 dan secara visual sebarannya tidak mengikuti sebaran normal cenderung bergelombang.
+
+## Matriks Korelasi
+Selanjutnya akan dilihat korelasi tiap peubah yang ada terhadap Y dengan fungsi corrplot berikut.
+
+```{r}
+library(corrplot)
+
+vars <- data %>% select(AQI, CO, so2, no2, o3, pm25, pm10)
+
+# hitung korelasi
+cor_matrix <- cor(vars, use = "complete.obs")
+
+# plot 
+corrplot(cor_matrix, method = "color", type = "upper",
+         tl.col = "black", tl.cex = 0.8,
+         addCoef.col = "black", 
+         number.cex = 0.8,
+         diag = FALSE)
+
+```
+Berdasarkan matriks korelasi tersebut diketahui bahwa peubah CO,SO2,NO2,dan O3 memiliki korelasi yang tinggi dengan AQI. Sedangkan pm10 dan p25 memiliki korelasi yang kecil sehingga akan dibuang dari kandidat pemilihan peubah X. Tanda korelasi dari peubah yang berkorelasi tinggi dengan AQI hanya SO2 yang memiliki tanda (-) hal ini menunjukkan semakin rendah nilai SO2 maka nilai AQI semakin tinggi. Sedangkan untuk CO, NO2 dan O3 berarah sama (+), yang berarti semakin tinggi nilainya maka nilai AQI pun akan semakin tinggi. Mengacu pada penelitian yang dilakukan oleh Dwangga (2018) So2 merupakan salah satu polutan yang dapat menurunkan kualitas udara dan menaikan polusi, sehingga semestinya berkorelasi (+) dengan AQI. Namun hal ini bisa saja terjadi akibat faktor lain seperti efek data lokal yang menyebabkan AQI diperiode dan lokasi tertentu lebih banyak dipengaruhi oleh polutan lain, atau ada faktor meteorologi yang memengaruhi dispersi So2.\
+
+## Scatter Plot
+Berikutnya akan dilakukan plot antara kandidat X dan Y, sehingga dapat dilihat secara visual hubungannya linier atau tidak.
+
+```{r}
+# CO dan AQi
+ggplot(data, aes(x = CO, y = AQI)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  theme_minimal()
+
+#SO2 dan AQi
+ggplot(data, aes(x = so2, y = AQI)) +
+  geom_point(alpha = 0.5, color = "darkgreen") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  theme_minimal()
+
+# O3 dan AQi
+ggplot(data, aes(x = o3, y = AQI)) +
+  geom_point(alpha = 0.5, color = "yellow") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  theme_minimal()
+
+# NO2 dan AQi
+ggplot(data, aes(x = no2, y = AQI)) +
+  geom_point(alpha = 0.5, color = "orange") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  theme_minimal()
+
+```
+
+Berdasakan hasil plot tersebut selanjutnya akan dipilih 2 kandidat terbaik untuk menjadi peubah X yaitu O3 dan NO2. Scatter plot O3 vs AQI menunjukkan visualisasi linieritas yang kuat antara o3 dan AQI begitupun dengan NO2 bila dibandingkan dengan CO dan SO2 plot NO2 vs AQi cenderung lebih fit atau mendekati garis.\
+
+## Time series Plot
+```{r}
+data <- data %>%
+  mutate(datetime = as.POSIXct(datetime, format = "%Y-%m-%d:%H"))
+
+data_ <- data %>%
+  select(datetime, o3, no2, AQI)
+
+data.ts <- ts(data_)
+
+# Plot AQI vs O3
+plot(data.ts[, "AQI"], type = "p", col = "blue",pch=19,
+     xlab = "Periode", ylab = "AQI",
+     main = " AQI vs O3")
+
+# Tambahkan sumbu kanan untuk O3
+par(new = TRUE)
+plot(data.ts[, "o3"], type = "p", col = "red",pch=19,
+     axes = FALSE, xlab = "", ylab = "")
+axis(side = 4, col.axis = "red")
+mtext("O3", side = 4, line = 3, col = "red")
+legend("topleft", legend = c("AQI", "O3"),
+       col = c("blue", "red"), pch = 19, bty = "n")
+
+# Plot AQI vs NO2
+plot(data.ts[, "AQI"], type = "p", col = "blue", pch = 19,
+     xlab = "Periode", ylab = "AQI",
+     main = "AQI vs NO2")
+
+# Tambah NO2 di sumbu kanan
+par(new = TRUE)
+plot(data.ts[, "no2"], type = "p", col = "darkgreen", pch = 19,
+     axes = FALSE, xlab = "", ylab = "")
+axis(side = 4, col.axis = "darkgreen")
+mtext("NO2", side = 4, line = 3, col = "darkgreen")
+
+# Legend
+legend("topleft", legend = c("AQI", "NO2"),
+       col = c("blue", "darkgreen"), pch = 19, bty = "n")
+```
+
+Berdasarkan visualisasi time series AQI vs O3 dan AQI vs NO2, Peubah O3 menjadi kandidat terkuat untuk terpilih menjadi peubah X, sebab memiliki pola yang hampir sama dengan AQI dan lebih konsisten.
+
+## Cross Correlation (CCF)
+```{r}
+# Cross correlation CO vs AQI
+ccf(data.ts[, "o3"], data.ts[, "AQI"], 
+    main = "Cross-correlation O3 vs AQI")
+```
+**Berdasarkan eksplorasi yang sudah dilakukan maka akan dipilih O3 sebagai peubah X**, dikarenakan memiliki korelasi yang tinggi, hubungan yang linier secara visual tadi, dan saat dilihat plot time seriesnya pola cenderung sama dengan AQI.\
+
+## Uji Aumsi model OLs dengan Y=AQI dan X= O3
+
+```{r}
+library(lmtest)
+model_ols<-lm(AQI ~ o3, data=data_)
+
+summary(model_ols)
+
+residuals <- resid(model_ols)
+
+#Uji sisaan menyebar normal
+shapiro.test(residuals)
+# uji homoskedastisitas
+bptest(model_ols)
+#uji Autokorelasi
+dwtest(model_ols)
+# uji harapan sisa sama dengan 0
+t.test(model_ols$residuals)
+```
+Terlihat data tidak normal dan ada autokorelasi, selanjutnya akan dilakukan pemodelan dengan lag mengingat pula data yang bentuknya time series.
+
+# Membuat data yang lebih rapih dengan peubah peubah yang diperlukan saja
+
+**Peubah Y: AQI**
+**Peubah X: O3**
+```{r}
+library(dplyr)
+
+datafix <- data_ %>%
+  select(AQI, o3) %>%
+  mutate(`AQI(t-1)` = lag(AQI, 1)) %>%
+  mutate(t = row_number()) %>%
+  select(t, AQI, `AQI(t-1)`, o3)%>%
+  rename(
+    Yt = AQI,
+    `Y(t-1)` = `AQI(t-1)` ,
+    Xt = o3
+  )
+datafix
+```
+
+## Pembagian Data
+
+```{r}
+#SPLIT DATA
+train<-datafix[1:56,]
+test<-datafix[57:72,]
+```
+
+```{r}
+#data time series
+train.ts<-ts(train)
+test.ts<-ts(test)
+data.ts<-ts(datafix)
+```
+
+# Melakukan  pemodelan Koyck
+## Model koyck
+```{r}
+model.koyck <- koyckDlm(x = train$Xt, y = train$Yt)
+summary(model.koyck)
+AIC(model.koyck)
+BIC(model.koyck)
+```
+**Interpretasi Hasil**
+-   Dari `summary`, kita mndapatkan model sebagai berikut:
+
+$$ \hat{Y_t}=0.59835+0.26133X_t+  0.41149Y_{t-1} $$
+
+- Koefisien $X_t$ (0.26133) signifikan, artinya nilai $X$ saat ini berpengaruh terhadap $Y$.
+
+- Koefisien $Y_{t−1}$ (0.41149) juga signifikan. Ini adalah **estimasi untuk** $\lambda$. Nilai ini menunjukkan bahwa sekitar 41% dari efek di periode sebelumnya masih "terbawa" ke periode saat ini atau dengan kata lain memengaruhi nilai $Y$ saat ini.
+- selain koefisien yang signifikan model ini juga memiliki R square yang tinggi sebesar 94.7%.
+
+## Peramalan dan Akurasi
+Berikut merupakan hasil peramalan y untuk 16 periode kedepan\
+
+```{r}
+fore.koyck <- forecast(model = model.koyck, x=test$Xt, h=16)
+fore.koyck
+mape.koyck <- MAPE(fore.koyck$forecasts, test$Yt)
+mape.koyck #data test
+#akurasi data training
+GoF(model.koyck)
+```
+Diperoleh MAPE data test sebesar 3.087% dan MAPE data train 1.4%. Menunjukkan model yang sangat baik dalam keakuratannya melakukan forcasting.\
+
+# Regression with Distributed Lag (DLM)
+## Mencari Lag optimum
+```{r}
+#penentuan lag optimum 
+finiteDLMauto(formula = Yt ~ Xt,
+              data = data.frame(train), q.min = 1, q.max = 10,
+              model.type = "dlm", error.type = "AIC", trace = TRUE)
+```
+
+Berdasarkan output tersebut, lag optimum didapatkan ketika lag=10 karena memiliki AIC terkecil. Selanjutnya dilakukan pemodelan untuk lag=10.\
+
+```{r}
+#model dlm dengan lag optimum
+model.dlm <- dlm(x = train$Xt,y = train$Yt , q = 10)
+summary(model.dlm)
+AIC(model.dlm)
+BIC(model.dlm)
+```
+
+Dari hasil tersebut terdapat beberapa peubah yang berpengaruh signifikan terhadap taraf nyata 5% yaitu $x_t$ , $x_{t-7}$ , $x_{t-8}$ , $x_{t-9}$, $x_{t-10}$. Adapun keseluruhan model yang terbentuk adalah:
+
+$$
+\hat{Y_t}=-0.321529+0.408408X_t+0.289750X_{t-7}-0.400939X_{t-8}+0.305036X_{t-9}-0.099197X_{t-10}
+$$
+Kemudian berikutnya akan dilakukan peramalan untuk 16 periode kedepannya.Berikut merupakan hasilnya:
+
+```{r}
+#peramalan dan akurasi
+fore.dlm<- forecast(model = model.dlm, x=test$Xt, h=16)
+
+#akurasi data test
+mape.dlm<- MAPE(fore.dlm$forecasts, test$Yt)
+mape.dlm
+
+#akurasi data training
+GoF(model.dlm)
+```
+Diperoleh MAPE untuk datatest sebesar 1.2% dan untuk data training sebesar 0.73%. Hal ini menunjukkan model sangat baik karena memiliki MAPE <10% artinya model akurat dalam melakukan forcasting. Kemudian selisih nilai MAPE data test dan train tidak jauh berbeda maka tidak terjadi overfitting\
+
+# Model Autoregressive
+## Mencari Lag Optimum
+```{r}
+#penentuan lag optimum
+model.ardl.opt <- ardlBoundOrders(data = data.frame(datafix), ic = "AIC", 
+                                  formula = Yt ~ Xt )
+model.ardl.opt
+min_p=c()
+for(i in 1:6){
+  min_p[i]=min(model.ardl.opt$Stat.table[[i]])
+}
+q_opt=which(min_p==min(min_p, na.rm = TRUE))
+p_opt=which(model.ardl.opt$Stat.table[[q_opt]] == 
+              min(model.ardl.opt$Stat.table[[q_opt]], na.rm = TRUE))
+data.frame("q_optimum" = q_opt, "p_optimum" = p_opt, 
+           "AIC"=model.ardl.opt$min.Stat)
+```
+Berdasarkan tabel tersebut nilai AIC terendah ketika  $p=13$ dan $q=2$ sebesar 16.55044. Berikutnya akan dilakukan pemodelan autoregressive dengan p=13 dan q=2.\
+
+```{r}
+model.ardl <- ardlDlm(formula = Yt ~ Xt, 
+                         data = train,p = 13 , q = 2)
+summary(model.ardl)
+AIC(model.ardl)
+BIC(model.ardl)
+```
+Hasil di atas menunjukkan bahwa peubah $xt_{t}$ sangat signifikan, hal ini menunjukkan bahwa peubah X pada periode saat ini berpengaruh terhadap Y . Hasil uji t untuk $x_{t-7}$ dan $x_{t-8}$ menunjukkan nilai p signifikan mendekati alpa 10%. Model keseluruhannya adalah sebagai berikut:
+
+$$
+\hat{Y}=-0.72215 +0.0000794X_t+0.0836X_{t-7}+0.0638Y_{t-8}
+$$
+```{r}
+fore.ardl <- forecast(model = model.ardl, x=test$Xt, h=16)
+fore.ardl
+mape.ardl <- MAPE(fore.ardl$forecasts, test$Yt)
+mape.ardl
+#akurasi data training
+GoF(model.ardl)
+```
+Didapat MAPE untuk data test sebesar 1.3% dan untuk data training 0.72%. Berdasarkan nilai MAPE keduaya ini model aman atau masuk dalam kategori sangat baik karena memiliki MAPE<10% dan tidak ada selisih yang besar antara MAPE data uji dan latih,sehingga tidak terjadi overfitting.\
+
+# Pemodelan DLM & ARDL dengan Library `dynlm`
+Akan dilakukan pemodelan DLM dan ARDL sebelumnyadengan  library dynlm, kemudian ditambah dengan dua kondisi lainnya untuk dlm ketika q=7 dan ARDL saat p=1 dan q=1
+```{r}
+library(dynlm)
+
+# sama seperti model sebelumnya menggunakan q=10 (optimum)
+dlm_qopt <- dynlm(Yt ~ Xt + L(Xt, 1:10), data = train.ts)
+summary(dlm_qopt)
+
+#menggunakan model optimum dengan p=2 dan q=13
+ardl_pqopt <- dynlm(Yt ~ Xt + L(Xt, 1:2) + L(Yt, 1:13), data = train.ts)
+summary(ardl_pqopt)
+
+#q=7
+cons_lm3<-dynlm(Yt ~ Xt+L(Xt, 1:7),data = train.ts)
+summary(cons_lm3)
+
+#p=1 q=1
+cons_lm4 <- dynlm(Yt ~ Xt+L(Xt)+L(Yt),data = train.ts)
+summary(cons_lm4)
+```
+
+## SSE
+
+```{r}
+deviance(dlm_qopt)
+deviance(ardl_pqopt)
+deviance(cons_lm3)
+deviance(cons_lm4)
+```
+
+### Uji Diagnostik
+
+#### Autokorelasi
+
+```{r}
+library(lmtest)
+#durbin watson
+dwtest(dlm_qopt)
+dwtest(ardl_pqopt)
+dwtest(cons_lm3)
+dwtest(cons_lm4)
+```
+
+#### Heterogenitas
+
+```{r}
+bptest(dlm_qopt)
+bptest(ardl_pqopt)
+bptest(cons_lm3)
+bptest(cons_lm4)
+```
+
+#### Kenormalan
+
+```{r}
+shapiro.test(residuals(dlm_qopt))
+shapiro.test(residuals(ardl_pqopt))
+shapiro.test(residuals(cons_lm3))
+shapiro.test(residuals(cons_lm4))
+```
+### Ragam sisaan =0
+```{r}
+res <- residuals(dlm_qopt)
+t.test(res, mu = 0)
+res <- residuals(ardl_pqopt)
+t.test(res, mu = 0)
+```
+
+
+**Simpulan**: Berdasarkan hasil tersebut model DLM dan ARDL optimum memenuhi asumsi normalitas, harapan sisa sama dengan 0, tak terjadi heteroskedastisitas dan  tidak ada autokorelasi, jadi modelnya aman. Sedangkan untuk model cons_lm3 itu tidak normal dan cons_lm4 itu terjadi heterskedastisitas.
+
+## Pengujian model koyck
+Model koyck bukan bentuk lm jadi untuk uji autokorelasi akan dilakukan dengan Ljung Box test dan heteroskedastisitas akan dilakukan dengan Glejser test.\
+
+```{r}
+library(lmtest)
+res_koyck <- residuals(model.koyck)
+
+#Uji normalitas galat
+shapiro.test(res_koyck)
+```
+
+```{r}
+# uji heteroskedastisitas
+fitted_koyck <- fitted(model.koyck)
+
+## Hitung absolut residual
+abs_res <- abs(res_koyck)
+
+## Glejser test
+glejser_test <- lm(abs_res ~ fitted_koyck)
+summary(glejser_test)
+
+# Uji autokorelasi
+Box.test(res_koyck, type="Ljung-Box", lag=10)
+
+# uji harapan sisa=0
+t.test(res_koyck, mu=0)
+```
+**simpulan**: Asumsi normalitas,autokorelasi yang dilihat dari Box-Ljung test,ragam homogen, dan tak terjadi heteroskedastisitas karena koefisien fiited_koyck pada glejser test tak signifikan, semuanya terpenuhi.\
+
+Berdasarkan hasil uji ini maka model **Koyck**, **DLM**, dan **ARDL** yang sudah dibuat memenuhi semua asumsi dan berhasil menangani asumsi normalitas dan autokorelasi yang tak tertangani di model OLS antara AQI  dan O3. Sehingga ketiga model ini valid. Kemudian nilai MAPE yang <10%pun ikut memperkuat keakuratan model dalam melakukan forcasting.Berikutnya akan dilakukan perbandingan model ketiganya untuk melihat mana yang terbaik dalam kasus data ini.\
+
+# Perbandingan Model
+
+```{r}
+akurasi <- matrix(c(mape.koyck, mape.dlm, mape.ardl))
+row.names(akurasi)<- c("Koyck","DLM ","Autoregressive")
+colnames(akurasi) <- c("MAPE")
+akurasi
+```
+
+Berdasarkan nilai MAPE, model paling optimum didapat pada Model DLM karena memiliki nilai MAPE yang terkecil.
+
+### Plot
+```{r}
+plot(test$Xt, test$Yt, type="b", col="black", main="Forecast vs Aktual", ylab="Yt", xlab="Xt")
+lines(test$Xt, fore.koyck$forecasts, col="red", lty=1)
+lines(test$Xt, fore.dlm$forecasts, col="blue", lty=1)
+lines(test$Xt, fore.ardl$forecasts, col="green", lty=1)
+legend("topleft", c("Aktual", "Koyck", "DLM", "ARDL"), lty=1,
+       col=c("black","red","blue","green"), cex=0.9)
+
+```
+Berdasarkan plot forecast, model DLM dan ARDL terlihat sangat mendekati data aktual AQI di New Delhi. Jika dikombinasikan dengan nilai MAPE sebelumnya, terlihat bahwa model DLM memberikan kesalahan prediksi paling kecil. Oleh karena itu, untuk kasus data AQI di New Delhi ini, pemodelan regresi menggunakan DLM dapat dianggap sebagai model terbaik.\
+
+
+## Refrences
+Dwangga, M. (2018). Intensitas Polusi Udara untuk Penunjang Perataan Ruang Kota Pelaihari Kabupaten Tanah Laut. Metode Jurnal Teknik Industri. 4(2):69-77.\
