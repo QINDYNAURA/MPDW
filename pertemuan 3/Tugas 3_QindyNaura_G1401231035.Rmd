@@ -50,9 +50,7 @@ Selanjutnya akan dilihat korelasi tiap peubah yang ada terhadap Y dengan fungsi 
 
 ```{r}
 library(corrplot)
-
-vars <- data %>% select(AQI, CO, so2, no2, o3, pm25, pm10)
-
+vars <- data %>% select(AQI,CO, so2, no2, o3, pm25, pm10)
 # hitung korelasi
 cor_matrix <- cor(vars, use = "complete.obs")
 
@@ -301,10 +299,10 @@ summary(model.ardl)
 AIC(model.ardl)
 BIC(model.ardl)
 ```
-Hasil di atas menunjukkan bahwa peubah $xt_{t}$ sangat signifikan, hal ini menunjukkan bahwa peubah X pada periode saat ini berpengaruh terhadap Y . Hasil uji t untuk $x_{t-7}$ dan $x_{t-8}$ menunjukkan nilai p signifikan mendekati alpa 10%. Model keseluruhannya adalah sebagai berikut:
+Hasil di atas menunjukkan bahwa peubah $xt_{t}$ sangat signifikan, hal ini menunjukkan bahwa peubah X pada periode saat ini berpengaruh terhadap Y . Hasil p-value untuk $x_{t-7}$ dan $x_{t-8}$ menunjukkan nilai p signifikan mendekati alpa 10%. Model keseluruhannya adalah sebagai berikut:
 
 $$
-\hat{Y}=-0.72215 +0.0000794X_t+0.0836X_{t-7}+0.0638Y_{t-8}
+\hat{Y}=-0.72215 + 0.38693X_t+0.26226 X_{t-7} -0.30569X_{t-8}
 $$
 ```{r}
 fore.ardl <- forecast(model = model.ardl, x=test$Xt, h=16)
@@ -441,7 +439,7 @@ legend("topleft", c("Aktual", "Koyck", "DLM", "ARDL"), lty=1,
        col=c("black","red","blue","green"), cex=0.9)
 
 ```
-Berdasarkan plot forecast, model DLM dan ARDL terlihat sangat mendekati data aktual AQI di New Delhi. Jika dikombinasikan dengan nilai MAPE sebelumnya, terlihat bahwa model DLM memberikan kesalahan prediksi paling kecil. Oleh karena itu, untuk kasus data AQI di New Delhi ini, pemodelan regresi menggunakan DLM dapat dianggap sebagai model terbaik.\
+Berdasarkan plot forecast, model DLM dan ARDL terlihat sangat mendekati data aktual AQI di New Delhi. Jika dikombinasikan dengan nilai MAPE sebelumnya, terlihat bahwa model **DLM** memberikan kesalahan prediksi paling kecil. Oleh karena itu, untuk kasus data AQI di New Delhi ini, pemodelan regresi menggunakan **DLM** dapat dianggap sebagai model terbaik.\
 
 
 ## Refrences
