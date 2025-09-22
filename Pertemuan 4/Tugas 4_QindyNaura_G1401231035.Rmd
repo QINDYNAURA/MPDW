@@ -1,1 +1,712 @@
+---
+title: "Tugas 4_MA AR ARMA" 
+author: "Qindy Naura_G1401231035" 
+date: "12 September 2025" 
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
 
+# SOAL 1
+
+**Proses MA(2)**\
+• Bangkitkan model MA(2) dengan $𝜃_1$ =0.4 dan $𝜃_2$ = 0.6 sebanyak 300
+data (Manual dan dengan arima.sim)\
+• Buat plot time series, plot ACF, plot PACF dan plot EACF. Idenifikasi
+apakah data tersebut stasioner\
+• Buat scatterplot antara $𝑌_t$ dengan $Y_{t-1}$,$𝑌_t$ dengan $Y_{t-2}$
+serta $𝑌_t$ dengan $Y_{t-3}$  
+• Hitung autokorelasi masing masing baik
+dari data bangkitan maupun secara teoritis\
+
+## Membangkitkan data
+
+### White Noise
+
+```{r}
+set.seed(35)
+wn <- rnorm(300)       
+ts.plot(wn, main="White Noise (seed=35)")
+par(mfrow = c(1, 2)) 
+acf(wn)
+acf(wn, xlim = c(1,20))
+```
+
+Terlihat bahwa *white noise* tidak memiliki autokorelasi dari plot
+ACFnya.
+
+### Membangkitkan Data Secara **Manual**
+
+Akan dibentuk MA(2) dengan $𝜃_1$ =0.4 dan $𝜃_2$ = 0.6 sebanyak 300 data
+dan $c=0$. Berikut adalah model untuk MA(2): 
+
+$$
+y_t = e_t+0.4e_{t-1} +0.6e_{t-2}
+$$
+
+Pada kasus ini dibutuhkan dua nilai awal untuk mengisi kekosongan
+diawal.
+
+```{r}
+set.seed(35)
+ma2<-c(wn[1],wn[2]) # Membuat dua slot diawal sebagai vektor awal, sebelum diperbarui dengan rumus MA(2).
+ma2
+```
+
+```{r}
+# Inisialisasi nilai ma2 sesuai sesuai rumus MA(2)
+ma2[1] <- wn[1]           
+ma2[2] <- wn[2] + 0.4*wn[1] 
+
+# Loop mulai dari i=3
+for (i in 3:300) {
+  ma2[i] <- wn[i] + 0.4*wn[i-1] + 0.6*wn[i-2]
+}
+head(ma2)
+```
+
+Berikutnya akan dilakukan pembangkitan data dengan menggunakan fungsi
+**'arima.sim()'**.
+
+### Membangkitkan Data dengan **arima.sim()**
+
+```{r}
+ma_2<-arima.sim(list(order=c(0,0,2), ma=c(0.4,0.6)), n=300)
+head(ma_2)
+```
+
+Data yang dibangkitkan secara manual dengan fungsi arima.sim memang
+berbeda sebab dengan cara manual data dibangkitkan secara acak.
+
+## Plot ACF, plot PACF dan plot EACF.
+
+Berikutnya akan dilakukan Plot ACF,PACF dan EACF untuk kemudian di
+identifikasi apakah data stasioner atau tidak.\
+Untuk model MA memiliki karakteristik cut off pada plot ACF dan tails
+off pada plot PACF.\
+
+### PLot ACF
+
+```{r}
+acf(ma2)
+acf(ma_2)
+```
+
+Berdasarkan plot ACF tersebut terlihat jelas bahwa kedua data yang
+dibangkitkan cut off pada lag pertama dan kedua, hal ini seuai dengan
+teori yang ada.
+
+### Plot PACF
+
+```{r}
+pacf(ma2)
+pacf(ma_2)
+```
+
+PACF dari proses MA(2) menunjukkan beberapa spike signifikan pada lag
+awal (1 dan 2), namun setelah itu nilainya mengecil dan berosilasi di
+sekitar nol.Pada intinya kedua data yang dibangkitkan cenderung **tails
+off**.\
+
+### Plot EACF
+
+```{r}
+TSA::eacf(ma2)
+TSA::eacf(ma_2)
+```
+
+Terlihat jelas berdasarkan EACF tersebut segitiga nol terdapat pada ordo
+AR(0) dan MA(2) untuk kedua data bangkitan.
+
+### Plot time seriesnya
+
+```{r}
+ts.plot(ma2)
+ts.plot(ma_2)
+```
+
+Berdasarkan plot deret waktu, data MA(2) berfluktuasi secara acak di
+sekitar rata-rata konstan tanpa adanya tren atau perubahan varians yang
+jelas. Hal ini mengindikasikan bahwa data bersifat **stasioner**.Hal ini
+diperkuat plot ACF yang menunjukkan cut off hanya pada lag 1 dan 2 yang
+berarti ketergantungan antar data hanya terbatas pada lag tertentu dan
+tidak berlanjut jauh, sehingga mengindikasikan bahwa proses ini
+stasioner.\
+
+## Scatterplot
+
+**note:** data yang digunakan data bangkitan secara manual\
+\### Scatterplot antara $Y_t$ dengan $Y_{t-1}$
+
+```{r}
+# Yt = mulai dari observasi ke-2 sampai ke-300
+yt_ma1   <- ma2[-1]     
+# Yt-1 = mulai dari observasi ke-1 sampai ke-299
+yt_1_ma <- ma2[-300]    
+
+plot(x = yt_1_ma, y = yt_ma1,
+     xlab = expression(Y[t-1]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-1")
+```
+
+Berdasarkan plot tersebut pola menunjukkan adanya hubungan yang positif
+antara $Y_t$ dengan $Y_{t-1}$.
+
+### Scatterplot antara $Y_t$ dengan $Y_{t-2}$
+
+```{r}
+# Yt = mulai dari observasi ke-3 sampai ke-300
+yt_ma2  <- ma2[-c(1,2)]
+# Yt-2 = mulai dari observasi ke-1 sampai ke-298
+yt_2_ma <- ma2[-c(299,300)]
+
+plot(x = yt_2_ma, y = yt_ma2,
+     xlab = expression(Y[t-2]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-2")
+```
+
+Berdasarkan plot tersebut terlihat bahwa antara $Y_t$ dengan $Y_{t-2}$
+terdapat hubungan yang positif namun sedikit lebih lemah bila
+dibandingkan dengan $Y_t$ vs $Y_{t-1}$ sebelumnya.
+
+### Scatterplot antara $Y_t$ dengan $Y_{t-3}$
+
+```{r}
+# Yt = mulai dari observasi ke-4 sampai ke-300
+yt_ma3   <- ma2[-c(1,2,3)]
+# Yt-3 = mulai dari observasi ke-1 sampai ke-297
+yt_3_ma <- ma2[-c(298:300)]
+
+plot(x = yt_3_ma, y = yt_ma3,
+     xlab = expression(Y[t-3]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-3")
+```
+
+Untuk plot $Y_t$ Vs $Y_{t-3}$ pola data menyebar secara acak dan tidak
+memperlihatkan adanya hubungan antara $Y_t$ dengan $Y_{t-3}$.
+
+**Simpulan**: Berdasarkan visualisasi plot antara $Y_t$ dengan
+$Y_{t-1}$, $Y_t$ dengan $Y_{t-2}$ dan $Y_t$ dengan $Y_{t-3}$ hasil yang
+ditunjukkan sesuai teori dimana pada MA(2) $Y_t$ dengan $Y_{t-1}$ (lag
+ke-1) dan $Y_{t-2}$ (lag ke-2) memiliki hubungan. Sedangkan dengan lag
+setelahnya seperti $Y_{t-3}$ dst tidak memiliki hubungan sebab
+autokorelasi teoritisnya = 0, atau bila dilihat dalam polanya tidak ada
+pola hubungan.\
+
+## Menghitung Autokorelasi Simulasi dan Teoritis
+
+### Autokorelasi Teoritis
+
+Untuk MA(2) nilai $\rho$ secara teoritis dapat dihitung seperti
+berikut:\
+$$
+\rho_1 = \frac{-\theta_1 + \theta_1 \theta_2}{1 + (-\theta_1)^2 + (-\theta_2)^2} 
+= \frac{-(-0.4) + (-0.4)(-0.6)}{1 + (-0.4)^2 + (-0.6)^2} 
+= \frac{0.4 + 0.24}{1 + 0.16 + 0.36} 
+= \frac{0.64}{1.52} \approx 0.421
+$$
+
+$$
+\rho_2=\frac{-\theta_2}{1 + (-\theta_1)^2 +(- \theta_2)^2}=\frac{-(-0.6)}{1 + (-0.4)^2 + (-0.6)^2}= \frac{0.6}{1.52} \approx 0.395
+$$ 
+
+Maka Berdasarkan rumus tersebut diperoleh nilai $\rho_1$= 0.421 dan
+$\rho_2$=0.395. $\rho_k$=0 untuk k=3,4,...
+
+### Autokorelasi Hasil Simulasi
+
+Berikutnya akan dilihat autokorelasi hasil simulasi dengan menggunakan
+fungsi 'cor'.\
+
+```{r}
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-1}$
+rho1<-cor(yt_ma1,yt_1_ma)
+cat("ρ1 =", round(rho1, 3), "\n")
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-2}$
+rho2<-cor(yt_ma2,yt_2_ma)
+cat("ρ2 =", round(rho2, 3), "\n")
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-3}$
+rho3<-cor(yt_ma3,yt_3_ma)
+cat("ρ3 =", round(rho3, 3), "\n")
+```
+
+**SIMPULAN**: Berdasarkan hasil teoritis dan hasil simulasi(data manual)
+untuk autokorelasi simulasi pertama yaitu $\rho_1$=0.380 memiliki nilai
+yang hampir sama dengan teoritisnya (0.421). Begitupun dengan
+autokorelasi hasil simulasi ke dua (0.389) memiliki nilai yang mendekati
+teoritisnya (0.395), perbedaan antara keduanya sangatlah kecil. Untuk
+autokorelasi ke tiga selisih antara hasil simulasinya dengan teoritis
+pun tidak terlalu jauh (mendekati 0). Jadi semua nilai autokorelasi
+pertama, kedua dan ketiga memiliki nilai yang hampir sama dengan
+teorinya. Adapun Perbedaan autokorelasi antara teoritis dengan hasil
+simulasi ini sangatlah wajar. Salah satunya dalam hal tanda (pada rho 3)
+dalam empiris bisa sedikit negatif/ positif, hal ini dikarenakan
+autokorelasi empiris punya sampling error dan datanyapun terbatas
+sehingga tidak persis sama dengan nilai teoritis.\
+
+# SOAL 2
+
+**Proses AR(2)**\
+• Bangkitkan model AR(2) dengan $𝜙_1$ = 0.5 dan $𝜙_2$ = 0.2 sebanyak 300
+data (Manual dan dengan arima.sim)\
+• Buat plot time series, plot ACF, plot PACF dan plot EACF. Idenifikasi
+apakah data tersebut stasioner\
+• Buat scatterplot antara $𝑌_t$ dengan $Y_{t-1}$,$𝑌_t$ dengan $Y_{t-2}$
+serta $𝑌_t$ dengan $Y_{t-3}$ \
+• Hitung autokorelasi masing masing baik dari data bangkitan maupun
+secara teoritis\
+
+## Membangkitkan data
+
+data akan dibangkkitkan sebanyak 300 data untuk proses AR(2) dengan
+$𝜙_1$ = 0.5 dan $𝜙_2$ = 0.2 serta $c=0$.
+
+### White Noise
+
+```{r}
+set.seed(1235)
+wn.ar <- rnorm(300)       
+ts.plot(wn.ar, main="White Noise (seed=1235)")
+```
+
+```{r}
+par(mfrow = c(1, 2)) 
+acf(wn.ar)
+acf(wn.ar, xlim = c(1,20))
+```
+
+Terlihat bahwa *white noise* tidak memiliki autokorelasi dari ACF.
+
+### Membangkitkan Data Secara **Manual**
+
+Akan dibentuk AR(2) dengan $𝜙_1$ = 0.5 dan $𝜙_2$ = 0.2 serta $c=0$.
+Berikut adalah model untuk MA(2):
+
+$$
+y_t = 0.5Y_{t-1} +0.2Y_{t-2}+e_t
+$$
+
+```{r}
+set.seed(1235)
+ar2[1:2] <- wn.ar[1:2]  # inisialisasi dua nilai pertama
+
+for(i in 3:300){
+  ar2[i] <- wn.ar[i] + 0.5*ar2[i-1] + 0.2*ar2[i-2]
+}
+ar2
+```
+
+Berikutnya akan dilakukan pembangkitan data dengan menggunakan fungsi
+**'arima.sim()'**.
+
+### Membangkitkan Data dengan **arima.sim()**
+
+```{r}
+ar_2 <- arima.sim(list(order=c(2,0,0), ar=c(0.5,0.2)), n=300)
+ar_2  
+```
+
+## Plot ACF, plot PACF dan plot EACF.
+
+Berikutnya akan dilakukan plot ACF,PACF dan EACF, untuk kemudian
+diindentifikasi data stasioner atau tidak. Karakteristik AR bila dilihat
+dari plot ini adalah pada PLot ACF akan tails off dan pada plot PACF
+akan cut off, kebalikan dari model MA\
+
+### PLot ACF
+
+```{r}
+acf(ar2)
+```
+
+Berdasarkan plot ACF tersebut polanya tails off mendekati sinusoidal.
+Hal ini sesuai dengan karakteristik Ar(2) pada plot ACF.
+
+### Plot PACF
+
+```{r}
+pacf(ar2)
+```
+
+Untuk model AR(p), PACF biasanya akan “cut off” setelah lag ke-p.
+Artinya, setelah lag ke-p, nilai PACF menjadi sangat kecil atau
+mendekati 0. Dalam plot terlihat bahwa pada lag 1 dan 2 terjadi cut off
+setelah itu turun mendekati 0, hal ini mengindikasikan AR(2).
+
+### Plot EACF
+
+```{r}
+TSA::eacf(ar2)
+```
+
+Dari pola ini belum terlihat jelas kalau data adalah AR(2), hal ini
+mungkin terjadi karena data simulasi kurang panjang atau noise terlalu
+besar. Namun plot ACF an PACF sudah menunjukkan pola AR(2).
+
+### Plot time seriesnya
+
+```{r}
+ts.plot(ar2)
+```
+
+Berdasarkan plot deret waktu, data AR(2) berfluktuasi secara acak di
+sekitar rata-rata yang konstan, dan tidak menunjukkan pola tren yang
+jelas. Hal ini mengindikasikan bahwa data bersifat stasioner. Selain
+itu, pola ACF yang tail off dan PACF yang berahir cut off pada lag kedua
+menunjukkan bahwa ketergantungan antar data hanya terbatas pada lag
+tertentu dan tidak berlanjut jauh, sehingga semakin menguatkan bahwa
+proses ini stasioner.
+
+## Scatterplot
+
+**Data yang digunakan**: Data bangkitan secara manual\
+\### Scatterplot antara $Y_t$ dengan $Y_{t-1}$
+
+```{r}
+#Yt
+yt_ar <- ar2[-1]
+#Yt-1
+yt_1_ar <- ar2[-300]
+
+plot(x = yt_1_ar, y = yt_ar,
+     xlab = expression(Y[t-1]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-1")
+```
+
+Berdasarkan hasil scatter plot tersebut Yt dengan Yt-1 memiliki hubungan
+yanng positif.
+
+### Scatterplot antara $Y_t$ dengan $Y_{t-2}$
+
+```{r}
+#Yt
+yt_ar1 <- ar2[-c(1,2)]
+#Yt-2
+yt_2_ar1 <- ar2[-c(299,300)]
+
+plot(x = yt_2_ar1, y = yt_ar1,
+     xlab = expression(Y[t-2]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-1")
+```
+
+Berdasarkan plot ini terlihat bahwa $Y_t$ dan $Y_{t-2}$ memiliki
+hubungan yang positif, namun kekuatannya lebih lemah dibandingakan
+dengan $Y_{t-1}$, sebab dalam pola terlihat sedikit lebih acak.\
+
+### Scatterplot antara $Y_t$ dengan $Y_{t-3}$
+
+```{r}
+#Yt
+yt_ar2 <- ar2[-c(1,2,3)]
+#Yt-3
+yt_3_ar2 <- ar2[-c(298:300)]
+
+
+plot(x = yt_3_ar2, y = yt_ar2,
+     xlab = expression(Y[t-3]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-1")
+```
+
+Dilihat dari plot ini hubungan $Y_t$ dengan $Y_{t-3}$ juga memiliki
+hubungan yang positif , namun polanya jauh lebih acak dibandingkan
+dengan $Y_t$ Vs $Y_{t-1}$ dan $Y_t$ Vs $Y_{t-2}$, sehingga
+mengindikasikan kekuatan hubungan yang lebih kecil.Hal ini sesuai teori
+karena semakin tinggi p (posisi lag sebelumnya) maka akan semakin kecil
+hubungannya ($\rho$ semakin kecil).
+
+## Menghitung Autokorelasi Simulasi dan Teoritis
+
+### Autokorelasi Teoritis
+
+Untuk AR(2) terdapat dua nilai $𝜙$ yaitu $𝜙_1$ = 0.5 dan $𝜙_2$ = 0.2\
+Kemudian untuk menghitung autokorelasinya ($\rho$) secara teoritis
+adalah sebagai berikut:\
+$$
+\phi_1 = \frac{\phi_1}{1 - (\phi_2) } 
+= \frac{(0.5)}{1 - (0.2)}
+= \frac{0.5}{0.8}
+= 0.625
+$$ 
+
+$$
+\phi_2 = \frac{\phi_2({1-\phi_2})+\phi_1^2}{1 - (\phi_2)} 
+= \frac{0.2({1-0.2})+0.5^2}{1 - (0.2)} 
+= \frac{41}{80}
+= 0.513
+$$
+
+$$
+\begin{align*}
+\rho_3 &= \phi_1 \rho_2 + \phi_2 \rho_1 \\
+       &= 0.5 \times 0.513 + 0.2 \times 0.625 \\
+       &= 0.2565 + 0.125 \\
+       &= 0.3815
+\end{align*}
+$$
+
+### Autokorelasi Hasil Simulasi
+
+Berikutnya akan dilihat autokorelasi hasil simulasi dengan menggunakan
+fungsi 'cor'.
+
+```{r}
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-1}$
+rho1<-cor(yt_ar,yt_1_ar)
+cat("ρ1 =", round(rho1, 3), "\n")
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-2}$
+rho2<-cor(yt_ar1,yt_2_ar1)
+cat("ρ2 =", round(rho2, 3), "\n")
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-3}$
+rho3<-cor(yt_ar2,yt_3_ar2)
+cat("ρ3 =", round(rho3, 3), "\n")
+```
+
+**Simpulan**: Berdasarkan hasil tersebut diperoleh nilai autokorelasi
+teoritis adalah $\rho_1$= 0.625, $\rho_2$= 0.513, $\rho_3$= 0.3815
+sedangkan hasil simulasi (data bangkitan manual) menunjukkan $\rho_1$=
+0.533, $\rho_2$= 0.396, $\rho_3$= 0.298. Terdapat sedikit perbedaan
+diantara nilai autokorelasi yang diperoleh dari simulasi dan teoritis
+namun masih dalam batas wajar, perbedaan ini sangat mungkin terjadi
+sebab pada data simulasi dipengaruhi oleh variabilitas sampel dan jumlah
+data yang terbatas. Bila data diperbesar akan semakin mendekati nilai
+teoritisnya. Bila dilihat dari polanya antara teoritis dengan simulasi
+memiliki pola $\rho$ yang menurun $\rho_1$\>$\rho_2$\>$\rho_3$, sehingga
+simulasi secara keseluruhan mencerminkan perilaku AR(2) dengan baik.\
+
+# SOAL 3
+
+**Proses ARMA(2,2)** • Bangkitkan model ARMA(2,2) dengan $𝜃_1$ = 0.4,
+$𝜃_2$ = 0.6 ,$𝜙_1$ = 0.5 dan $𝜙_2$ = 0.2 sebanyak 300 data (Manual dan
+arima.sim)\
+• Buat plot time series, plot ACF, plot PACF dan plot EACF. Idenifikasi
+apakah data tersebut stasioner\
+• Buat scatterplot antara $𝑌_t$ dengan $Y_{t-1}$,$𝑌_t$ dengan $Y_{t-2}$
+serta $𝑌_t$ dengan $Y_{t-3}$ \
+• Hitung autokorelasi masing masing baik dari data bangkitan maupun
+secara teoritis\
+
+## Membangkitkan Data
+
+Data akan dibangkkitkan sebanyak 300 data untuk proses ARMA(2,2) dengan
+$𝜃_1$ = 0.4, $𝜃_2$ = 0.6 ,$𝜙_1$ = 0.5 dan $𝜙_2$ = 0.2 serta $c=0$.
+
+### White Noise
+
+```{r}
+set.seed(1235)
+wn.arma <- rnorm(300)       
+ts.plot(wn.ar, main="White Noise (seed=1235)")
+```
+
+```{r}
+par(mfrow = c(1, 2)) 
+acf(wn.arma)
+acf(wn.arma, xlim = c(1,20))
+```
+
+Tidak ada autokorelasi pada data baagkitan secara manual ini bila
+dilihat dariplot ACFnya.
+
+### Membangkitkan Data Secara **Manual**
+
+Akan dibentuk AR(2) dengan $𝜃_1$ = 0.4, $𝜃_2$ = 0.6 $𝜙_1$ = 0.5 dan
+$𝜙_2$ = 0.2 serta $c=0$. Berikut adalah model untuk MA(2):
+
+$$
+Y_t = \phi_1 Y_{t-1} + \phi_2 Y_{t-2} +e_t +\theta_1 e_{t-1} + \theta_2 e_{t-2}
+ = 0.5\,Y_{t-1} + 0.2\,Y_{t-2} + 0.4\,e_{t-1} + 0.6\,e_{t-2} + e_t
+$$
+
+```{r}
+n = length(wn.arma)
+y.arma <- numeric(n)
+
+phi1= 0.5
+phi2= 0.2
+theta1= 0.4
+theta2= 0.6
+
+# Inisialisasi dua nilai pertama
+y.arma[1] <- wn.arma[1]
+y.arma[2] <- phi1*y.arma[1] + wn.arma[2] + theta1*wn.arma[1] 
+
+for (i in 3:300){
+  y.arma[i] <- phi1*y.arma[i-1] + phi2*y.arma[i-2] +
+               theta1*wn.arma[i-1] + theta2*wn.arma[i-2] +
+               wn.arma[i]
+}
+y.arma
+```
+
+Berikutnya akan dilakukan pembangkitan data dengan fungsi
+**arima.sim()** \
+
+### Membangkitkan Data dengan **arima.sim()**
+
+```{r}
+arma22 <- arima.sim(list(order=c(2,0,2), ar = c(0.5,0.2), ma =c(0.4,0.6)), n=300)
+arma22
+```
+
+## Plot ACF, plot PACF dan plot EACF
+
+Berikutnya akan dilakukan plot ACF,PACF dan EACF, untuk kemudian
+diindentifikasi data stasioner atau tidak. Karakteristik ARMA bila
+dilihat dari plot ini adalah baik pada PLot ACF maupun PACF akan tails
+off\
+
+### PLot ACF
+
+```{r}
+acf(y.arma)
+acf(arma22)
+```
+
+Berdasarkan plot ACF ini kedua data yang dibangkitkan baik y.arma maupun
+arma22 memiliki pola tail off, hal ini sesuai dengan teori yang ada.
+
+### Plot PACF
+
+```{r}
+pacf(y.arma)
+pacf(arma22)
+```
+
+Kedua data yang dibangkitkan menunjukkan pola tails off pada plot PACF
+ini, hal ini sesuai dengan teori yang ada.
+
+### Plot EACF
+
+```{r}
+TSA::eacf(y.arma)
+TSA::eacf(arma22)
+```
+
+Berdasarkan EACF ini data bangkitan arma22 lebih memiliki pola data yang
+sesuai dengan ARMA(2,2) dibandingkan data y.arma (data bangkitan
+manual).
+
+### Plot time seriesnya
+
+```{r}
+ts.plot(y.arma)
+ts.plot(arma22)
+```
+
+Pada data arma22 (data bangkita dengan fungsi arma.sim) terlihat ada
+sedikit pola tren, namun pada data bangkitan y.arma (bangkitan manual)
+data tidak menunjukkan pola tren yang jelas cenderung konstan.\
+Berdasarkan plot PACF, ACF dan EACF kedua data yang dibangkitkan
+memiliki karakteristik dari ARMA(2,2). Namun data bangkitan y.arma lebih
+kostan (stasioner) dibangdingkan dengan arma22 bila dilihat dari
+visualisasi ts.plotnya.\
+
+## Scatterplot
+
+**Data yang dipakai**: data bangkitan secara manual \### Scatterplot
+antara $Y_t$ dengan $Y_{t-1}$
+
+```{r}
+#Yt
+yt_arma <- y.arma[-1]
+
+#Yt-1
+yt_1_arma <- y.arma[-300]
+
+
+plot(x = yt_1_arma, y = yt_arma,
+     xlab = expression(Y[t-1]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-1")
+```
+
+### Scatterplot antara $Y_t$ dengan $Y_{t-2}$
+
+```{r}
+#Yt
+yt_arma1 <- y.arma[-c(1,2)]
+
+#Yt-2
+yt_2_arma1 <- y.arma[-c(299,300)]
+
+
+plot(x = yt_2_arma1, y = yt_arma1,
+     xlab = expression(Y[t-2]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-1")
+```
+
+### Scatterplot antara $Y_t$ dengan $Y_{t-3}$
+
+```{r}
+#Yt
+yt_arma2 <- y.arma[-c(1,2,3)]
+
+#Yt-3
+yt_3_arma2 <- y.arma[-c(298:300)]
+
+
+plot(x = yt_3_arma2, y = yt_arma2,
+     xlab = expression(Y[t-3]),
+     ylab = expression(Y[t]),
+     main = "Scatterplot Yt vs Yt-1")
+```
+
+Berdasarkan ketiga plot tersebut dapat dilihat bahwa pola hubungannya
+positif baik $Y_t$ dengan $Y_{t-1}$ ,$Y_t$ dengan $Y_{t-2}$ dan $Y_t$
+dengan $Y_{t-3}$. Namun untuk kekuatan pola hubungan $Y_t$ dengan
+$Y_{t-3}$ terindikasi memiliki kekuatan hubungan yang lebih lemah
+dibandingkan dengan $Y_t$ Vs $Y_{t-1}$ dan $Y_t$ dan $Y_{t-2}$ karena
+memiliki pola yanng lebih acak.\
+
+## Menghitung Autokorelasi Simulasi dan Teoritis
+
+### Autokorelasi Teoritis
+
+Autokorelasi ARMA secara teoritis akan dihitung dengan menggunakan
+pendekatan fungsi ARMAacf\
+
+```{r}
+phi <- c(0.5, 0.2)
+theta <- c(0.4, 0.6)
+
+rho_theoretical <- ARMAacf(ar=phi, ma=theta, lag.max=3)
+rho_theoretical  
+```
+
+Maka nilai $\rho_1$ =0.859, $\rho_1$=0.749, dan $\rho_3$=0.546
+
+### Autokorelasi Hasil Simulasi
+
+Berikutnya akan dilihat autokorelasi hasil simulasi(data manual) dengan
+menggunakan fungsi 'cor'.
+
+```{r}
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-1}$
+rho1<-cor(yt_arma,yt_1_arma)
+cat("ρ1 =", round(rho1, 3), "\n")
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-2}$
+rho2<-cor(yt_arma1,yt_2_arma1)
+cat("ρ2 =", round(rho2, 3), "\n")
+# Autokorelasi ke-1 yaitu $Y_t$ dengan $Y_{t-3}$
+rho3<-cor(yt_arma2,yt_3_arma2)
+cat("ρ3 =", round(rho3, 3), "\n")
+```
+
+**Simpulan**: Berdasarkan hasil tersebut diperoleh nilai autokorelasi
+teoritis adalah $\rho_1$ =0.859, $\rho_1$=0.749, dan $\rho_3$=0.546
+sedangkan hasil simulasi menunjukkan $\rho_1$= 0.822, $\rho_2$= 0.683,
+$\rho_3$= 0.451. Terdapat sedikit perbedaan diantara nilai autokorelasi
+yang diperoleh dari simulasi dan teoritis ini sangat mungkin terjadi
+sebab pada data simulasi dipengaruhi oleh variabilitas sampel dan jumlah
+data yang terbatas. Bila dilihat dari polanya antara teoritis dengan
+simulasi memiliki pola $\rho$ yang menurun $\rho_1$\>$\rho_2$\>$\rho_3$,
+sehingga simulasi secara keseluruhan mencerminkan ARMA(2,2) dengan
+baik.\
