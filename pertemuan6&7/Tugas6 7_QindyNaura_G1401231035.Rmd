@@ -210,7 +210,7 @@ Namun jika baik plot ACF maupun plot PACF keduanya dianggap tails of, maka model
 ```{r}
 eacf(train.diff)
 ```
-Berdasarkan plot EACF tersebut model tentatif yang terbentuk adalah (2,1,1) dan (3,1,2)
+Berdasarkan plot EACF tersebut model tentatif yang terbentuk adalah ARIMA(2,1,1),ARIMA(3,1,2) dan ARIMA(4,1,3)
 
 ## Pendugaan Parameter Model tentatif 
 
