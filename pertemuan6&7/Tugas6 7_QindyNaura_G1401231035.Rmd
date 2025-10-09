@@ -1,1 +1,391 @@
+---
+title: "PRAKTIKUM 6&7_MPDW_QINDYNAURA"
+author: "Qindy Naura"
+date: "2025-09-29"
+output: html_document
+---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Memanggil Library
+```{r}
+library(forecast)
+library(graphics)
+library(TTR)
+library(TSA)
+library(rio)
+library(readr)
+library(readxl)
+library(ggplot2)
+library(tsibble)
+library(MASS)
+```
+
+# Import Data File
+
+Data yang digunakan berisi data Cuaca yang dicatat setiap 10 menit sepanjang tahun 2020, mencakup 20 indikator meteorologi yang diukur di stasiun cuaca Max Planck Institute. Variabel yang akan digunakan nantinya adalah VPdef yaitu defisit tekanan uap dalam milibar(mbar) sebagai peubah y dan date (periode) sebagai peubah x\
+
+```{r}
+library("dplyr")
+library("lubridate")
+data1 <- rio::import("https://raw.githubusercontent.com/QINDYNAURA/MPDW/main/Kel2_Data%20fix%20Proyek_VPdef.csv")
+data1$periode <- as.POSIXct(data1$date, format = "%m/%d/%Y %H:%M")
+str(data1)
+data1
+```
+
+# Mengambil Data yang diperlukan
+Berikutnya akan diselect baris dan kolom yang diperlukan. Baris yang diambil dari 101-200 dengan kolom periode dan VPdef.\
+
+```{r}
+library(dplyr)
+data1fix <- data1 %>%
+  select(periode, VPdef)
+datafix <- data1fix[101:200, ] 
+```
+
+# Ekplorasi
+## Plot Data Penuh
+
+```{r}
+datafix.ts <- ts(datafix$VPdef)
+
+datafix_tsibble <- as_tsibble(datafix.ts)
+
+plot_vpdef <- datafix_tsibble |>
+  ggplot(aes(x = index, y = value)) +
+  geom_line(color = "orange") +
+  theme_bw() +
+  xlab("Periode") +
+  ylab("Nilai VPdef")
+plot_vpdef
+mean(datafix.ts)
+```
+
+
+Berdasarkan plot data tersebut dapat terlihat bahwa defisit tekanan uap awal mulanya sangat tinggi kemudian mulai menurun secara cepat(cukup tajam) sampai di x sekitar 25-30. Kemudian setelah itu pola data mulai naik turun dengan fluktuasi yang kecil (cenderung stabil). Kemudian menjelang x=100 data mulai naik. Secara garis besar pola datanya adalah trend menurun diawal->fluktuasi kecil.\
+
+```{r}
+lattice::densityplot(as.vector(datafix.ts))
+```
+
+Plot densitas di atas menunjukkan sebagian besar nilai data terkonsentrasi pada rentang sekitar 0,3–0,6 dengan penurunan kepadatan pada nilai yang lebih tinggi.\
+
+## Plot Data Latih
+Berdasarkan plot data secara keseluruhan pada data awal terlihat bahwa data tidak stasioner, untuk itu dilakukan split data sebagai berikut.\
+
+```{r}
+trainvpdef <- datafix[1:75,] # data latih, data ini akan dijadikan sebagai data latih
+trainvpdef.ts <- ts(trainvpdef$VPdef)
+plot.ts(trainvpdef.ts, lty=1, xlab="periode", ylab="VPdef", main="Plot VPdef")
+```
+Berdasarkan plot tersbut dapat terlihat bahwa pada periode awal terlihat ada tren menurun yang tajam, dan tak cenderung bergerak pada nilai tertentu hal ini mengindikasikan data tidak stasioner dalam rataan.\
+
+## Plot Data Uji
+```{r}
+test<- datafix[76:100,] # data uji
+test.ts <- ts(test$VPdef)
+plot.ts(test.ts, lty=1, xlab="periode", ylab="VPdef", main="Plot VPdef")
+```
+
+## Uji Stasioneritas Data
+### Stasioneritas dalam Rataan
+
+Pengecekan stasioneritas dalam mean dilakukan dengan melihat plot ACF nya dan diperkuat dengan uji formal  Augmented Dickey-Fuller (ADF)\
+
+```{r}
+acf(trainvpdef.ts)
+```
+
+Berdasarkan plot ACF tersebut terlihat bahwa plot ACF data menurun secara lambat(**tails off**). Hal ini mengindikasikan bahwa data tidak stasioner dalam rataan.\
+
+### Uji ADF
+
+```{r}
+tseries::adf.test(trainvpdef.ts)
+```
+
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar 0.08596 yang lebih besar dari taraf nyata 5% sehingga gagal tolak $H_0$ dan menandakan bahwa data tidak stasioner dalam rataan. Hal ini sesuai dengan hasil eksplorasi menggunakan plot time series dan plot ACF, sehingga ketidakstasioneran model kedepannya harus ditangani.\
+
+### Stasioneritas dalam Ragam
+Berikutnya akan dicek stasioneritas data dalam ragam dengan menggunakan Box-cox.\
+
+```{r}
+index <- 1:length(trainvpdef.ts)
+model <- lm(trainvpdef.ts ~ index)
+
+# Plot Box-Cox
+bc <- MASS::boxcox(model, lambda = seq(-2,2,0.1))
+
+# Ambil lambda terbaik
+lambda <- bc$x[which.max(bc$y)]
+lambda
+
+# Selang kepercayaan 95%
+bc$x[bc$y > max(bc$y) - 0.5 * qchisq(0.95, 1)]
+```
+Berdasarkan grafik lamda tersebut angka 1 tidak masuk dalam selang hal ini mengindikasikan data tidak stasioner dalam ragam.\
+
+# Penanganan Ketidakstasioneran Data
+Penanganan pertama yang dilakukan adalah differencing untuk mengatasi data yang tak stasioner dalam rataan. Kemudian setelah itu dicek kembali stasioneritas dalam ragamnya.\
+
+## Differencing
+```{r}
+train.diff<-diff(trainvpdef.ts,differences = 1) 
+plot.ts(train.diff, lty=1, xlab="periode", ylab="Data Difference 1 VPdef", main="Plot Difference VPdef")
+```
+Berdasarkan plot ini data yang sudah di differencing cenderung bergerak pada nilai tengah tertentu, hal ini mengindikasikan data sudah stasioner dalam rataan. Berikutnya akan dilihat plot ACF nya dan dilakukan uji ADF agar lebih meyakinkan dan valid.
+
+### Plot ACF data differencing
+```{r}
+acf(train.diff)
+```
+
+Berdasarkan plot ACF tersebut pola plot **cut off** di lag  1 sehingga mengindikasikan data sudah stasioner dalam rataan.
+
+### Uji ADF pada data differencing
+```{r}
+tseries::adf.test(train.diff)
+```
+
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar 0.01 yang lebih kecil dari taraf nyata 5% sehingga tolak $H_0$ atau data stasioner dalam rataan. Hal ini sesuai dengan hasil eksplorasi menggunakan plot time series dan plot ACF. 
+
+### Mengecek kembali kestasioneran dalam ragam 
+Data setelah dilakukan differencing tadi dilakukan kembali pengecekan dalam ragam, agar data benar-benar stasioner.\
+
+```{r}
+index <- seq_along(train.diff)
+
+# Uji Box-Cox
+bc <- boxcox(
+  (train.diff - min(train.diff) + 0.3) ~ index,
+  lambda = seq(-1, 3, by = 0.1)
+)
+
+# Nilai lambda optimum
+lambda <- bc$x[which.max(bc$y)]
+lambda
+
+# Batas bawah dan batas atas
+ci_lower <- min(ci_lambda)
+ci_upper <- max(ci_lambda)
+
+c(Batas_Bawah = ci_lower, Batas_Atas = ci_upper)
+```
+Berdasarkan grafik lamda tersebut nilai 1 termasuk dalam selang lamdanya, sehingga data setelah differencing stasioner dalam ragam.\
+
+**Simpulan**: Ketaksioneran data dalam rataan dan ragam berhasil **ditangani dengan baik**. Selanjutnya data siap untuk diidentifikasi model. 
+
+# Identifikasi Model
+Identifikasi model akan dilakukan dengan melihat terlebih dahulu pola ACF dan PACF nya sehingga akan didapatkan model tentatif.
+
+## Memilih model tentatif
+### Plot ACF
+```{r}
+acf(train.diff)
+```
+
+Terlihat bahwa plot ACF cutof signifikan pada lag 1 sehingga bila plot PACF dianggap *tails off* , maka model tentatif yang terbentuk adalah ARIMA(0,1,1).
+
+### Plot PACF
+```{r}
+pacf(train.diff)
+```
+
+Berdasarkan plot tersebut, terlihat bahwa plot PACF cenderung *cuts off* pada lag ke 1, sehingga jika plot ACF dianggap *tails off*, maka model tentatifnya adalah ARIMA(1,1,0).
+
+Namun jika baik plot ACF maupun plot PACF keduanya dianggap tails of, maka model yang terbentuk adalah ARIMA(1,1,1)
+
+### Plot EACF
+```{r}
+eacf(train.diff)
+```
+Berdasarkan plot EACF tersebut model tentatif yang terbentuk adalah (2,1,1) dan (3,1,2)
+
+## Pendugaan Parameter Model tentatif 
+
+### ARIMA(1,1,0)
+```{r}
+model1.da=Arima(train.diff, order=c(1,0,0),method="ML")
+summary(model1.da) 
+lmtest::coeftest(model1.da)
+```
+Didapatkan AIC=-212.23 dan untuk koefisien signifikan dalam tarafnya nyata 10%.
+
+### ARIMA(0,1,1)
+```{r}
+model2.da=Arima(train.diff, order=c(0,0,1),method="ML")
+summary(model2.da) 
+lmtest::coeftest(model2.da)
+```
+
+Didapatkan AIC=-211.55 dan semua koefisien signifikan dalam taranya nyata 5%.
+
+### ARIMA(1,1,1)
+```{r}
+model3.da=Arima(train.diff, order=c(1,0,1),method="ML")
+summary(model3.da) 
+lmtest::coeftest(model3.da)
+```
+Didapatkan AIC=-210.64  namun semua koefisien tidak signifikan, hanya intercept dalam taraf 10%.
+
+### ARIMA(2,1,1)
+```{r}
+model4.da=Arima(train.diff, order=c(2,0,1),method="ML")
+summary(model4.da) 
+lmtest::coeftest(model4.da)
+```
+Didapatkan AIC=-208.64 namun semua koefisien tidak signifikan, hanya intercept dalam taraf 10%.
+
+### ARIMA(3,1,2)
+```{r}
+model5.da=Arima(train.diff, order=c(3,0,2),method="ML")
+summary(model5.da) 
+lmtest::coeftest(model5.da)
+```
+AIC= -208.89, ma1 tidak signifikan.
+
+### ARIMA(4,1,3)
+```{r}
+model6.da=Arima(train.diff, order=c(4,0,3),method="ML")
+summary(model6.da) 
+lmtest::coeftest(model6.da)
+```
+AIC=-211.32 hanya ada dua yang signfikan dalam taraf nyata 5% yaitu ar3 dan ma3.
+
+**Simpulan**: Dari kandidat tersebut hanya ARIMA(0,1,1) yang seluruh koefisiennya signifikan, dan AIC nya pun tergolong rendah diantara kandidat lainnya. Sehingga model ARIMA(0,1,1) terpilih sebagai model terbaik setelah identifikasi model tentatif.
+
+## Analisis Sisaan
+Model tentatif trbaik yang terpilih selanjutnya akan diuji sisaannya. Sisaan model harus memenuhi asumsi normalitas, kebebasan sisaan, dan kehomogenan ragam.
+
+### Eksplorasi Sisaan
+
+```{r}
+sisaan.da <- model2.da$residuals
+par(mfrow = c(2,2), mar = c(4,4,2,1))
+
+# QQ Plot
+qqnorm(sisaan.da, main = "QQ Plot Residual")
+qqline(sisaan.da, col = "blue", lwd = 2)
+
+# Plot residual vs periode
+plot(seq_along(sisaan.da), sisaan.da,
+     type = "l", col = "darkgreen",
+     main = "Residual vs periode")
+
+# ACF residual
+acf(sisaan.da, main = "ACF Residual")
+
+# PACF residual
+pacf(sisaan.da, main = "PACF Residual")
+
+par(mfrow = c(1,1))
+
+```
+Berdasarkan QQ plot, secara eksplorasi terlihat bahwa sisaan tidak menyebar normal ditandai dengan titik titik yang cenderung tidak mengikuti garis.Untuk lebar pita sisaan yang cenderung menunjukan ragam sisaan homogen. Plot ACF dan PACF sisaan ARIMA(0,1,1) tidak signifikan pada 18 lag awal yang menandakan saling bebas. Kondisi ini akan diuji lebih lanjut dengan uji formal.
+
+#### Uji Formal
+
+```{r}
+#1) Sisaan Menyebar Normal 
+ks.test(sisaan.da,"pnorm")  #tak tolak H0 > sisaan menyebar normal
+```
+
+Akan dilakukan uji normalitas sisaan dengan kolmogorov smirnov. Berikut merupakan hipotesisnya
+
+$H_0$ : Sisaan menyebar normal
+
+$H_1$ : Sisaan tidak menyebar normal
+
+Berdasarkan uji KS tersebut, didapat *p-value* sebesar 5.207e-14 yang kurang dari taraf nyata 5% sehingga tolak $H_0$ dan menandakan bahwa sisaan tidak menyebar normal. Hal ini sesuai dengan hasil eksplorasi menggunakan qq plot tadi.
+
+```{r}
+#2) Sisaan saling bebas/tidak ada autokorelasi 
+Box.test(sisaan.da, type = "Ljung")  #tak tolak H0 > sisaan saling bebas
+```
+
+Selanjutnya akan dilakukan uji formal untuk kebebasan sisaan menggunakan uji Ljung-Box. Hipotesis yang digunakan adalah sebagai berikut.
+
+$H_0$ : Sisaan saling bebas
+
+$H_1$ : Sisaan tidak tidak saling bebas
+
+Berdasarkan uji Ljung-Box tersebut, didapat *p-value* sebesar 0.8261 yang lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa sisaan saling bebas.
+
+```{r}
+#3) Sisaan homogen 
+Box.test((sisaan.da)^2, type = "Ljung")  #tak tolak H0 > sisaan homogen
+```
+
+Hipotesis yang digunakan untuk uji kehomogenan ragam adalah sebagai berikut.
+
+$H_0$ : Ragam sisaan homogen
+
+$H_1$ : Ragam sisaan tidak homogen
+
+Berdasarkan uji Ljung-Box terhadap sisaan kuadrat tersebut, didapat *p-value* sebesar 0.8232 lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa ragam homogen.
+
+```{r}
+#4) Nilai tengah sisaan sama dengan nol 
+t.test(sisaan.da, mu = 0, conf.level = 0.95)  #tak tolak h0 > nilai tengah sisaan sama dengan 0
+```
+
+Terakhir, dengan uji-t, akan dicek apakah nilai tengah sisaan sama dengan nol. Hipotesis yang diujikan sebagai berikut.
+
+$H_0$ : nilai tengah sisaan sama dengan 0
+
+$H_1$ : nilai tengah sisaan tidak sama dengan 0
+
+Berdasarkan uji-ttersebut, didapat *p-value* sebesar 0.9354 yang lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$, cukup bukti untuk menyatakan nilai tengan sisaan tidak sama dengan 0.
+
+**Simpulan**: Diagnostik hanya tidak terpenuhi dalam normalitas sisaan. Selama residual dari ARIMA sudah white noise (tidak ada autokorelasi yang signifikan dan varian stabil), kegagalan memenuhi normalitas tidak menggugurkan kelayakan model untuk peramalan. Ingat metode yang digunakan untuk prediksi tadi adalah dengan maximum likelihood; estimasi parameter tetap konsisten walaupun residual tidak normal. Normalitas hanya krusial bila kita hendak melakukan inferensi berbasis distribusi atau membutuhkan interval prediksi yang presisi secara probabilistik.
+
+### Overfitting
+uji overfitting untuk model terbaik tentatif tadi adalah ARIMA (1,1,1) namun untuk model ini sudah dicek sebelumnya, berikutnya akan dicoba satu model lagi yaitu ARIMA(0,1,2).
+
+```{r}
+model7.da=Arima(train.diff, order=c(0,0,2),method="ML")
+summary(model7.da) 
+lmtest::coeftest(model7.da)
+```
+Ternyata hasilnya tidak lebih baik dibandingkan ARIMA(0,1,1), sehingga model yang tetap terpilih adalah ARIMA(0,1,1). Maka tahap berikutnya adalah peramalan
+
+### Peramalan
+Peramalan dilakukan menggunakan fungsi `forecast()`.Contoh peramalan berikut ini dilakukan untuk 10 periode ke depan (100 menit) ke depan.
+
+```{r}
+# Forecasting
+ramalan.da <- forecast::forecast(model2.da, h = 10) 
+ramalan.da
+data.ramalan.da <- ramalan.da$mean
+plot(ramalan.da)
+```
+
+Berdasarkan hasil plot ramalan di atas, dapat dilihat bahwa ramalan ARIMA(0,1,1) cenderung stabil hingga akhir periode. Selanjutnya, dapat dicari nilai akurasi antara hasil ramalan dengan data uji sebagai berikut.
+
+```{r}
+pt_1 <- trainvpdef.ts[75] #nilai akhir data latih
+hasil.forc.Diff <- data.ramalan.da
+hasil <- diffinv(hasil.forc.Diff, differences = 1) + pt_1
+#has.1 sama hasilnta dengan: cumsum(c(pt_1,hasil.forc.Diff))
+ts.plot(train.ts,hasil)
+```
+
+```{r}
+perbandingan.da<-matrix(data=c(head(test.ts, n=10), hasil[-1]),
+                     nrow = 10, ncol = 2)
+colnames(perbandingan.da)<-c("Aktual","Hasil Forecast")
+perbandingan.da
+accuracy(ts(hasil[-1]), head(test.ts, n=10))
+```
+Berdasarkan hasil tersebut didapatkan akurasi model sebesar 11.84% model sudah bagus untuk melakukan forecast, namun bila dilakukan peningkatan periode batas periode forecasting yang menghasilkan MAPE under 20% adalah 13 periode. Bila memforecasting diatas 13 periode MAPE akan melonjak naik sangat jauh bahkan bisa naik bertambah 10%. Hal ini menandakan bahwa **model hanya pas untuk forecasting jangka pendek** hal ini masuk akal untuk data ini yang berupa data VPdef( defisit tekanan uap) yang dicek dalam 10 menit sekali. Apabila ingin melakukan forecast untuk jangka panjang mungkin bisa dilakukan dengan pemodelan lain agar lebih relevan dan valid.\
